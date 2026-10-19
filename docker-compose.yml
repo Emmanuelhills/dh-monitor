@@ -1,0 +1,80 @@
+# Production-style deployment: separate processes for frontend, API, worker, scheduler,
+# PostgreSQL and Redis (Technical Specification §12). Put a TLS-terminating reverse proxy in
+# front of `frontend` and set DHM_COOKIE_SECURE=true.
+#
+#   cp .env.example .env   # fill in secrets
+#   docker compose up -d --build
+#   docker compose run --rm api python -m app.cli create-admin --email you@example.com
+
+x-backend: &backend
+  build: ./backend
+  env_file: .env
+  environment:
+    DHM_DATABASE_URL: postgresql+psycopg://dhm:${POSTGRES_PASSWORD}@db:5432/dhm
+    DHM_BROKER_URL: redis://redis:6379/0
+  depends_on:
+    db: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    migrate: { condition: service_completed_successfully }
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: dhm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: dhm
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dhm -d dhm"]
+      interval: 10s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build: ./backend
+    env_file: .env
+    environment:
+      DHM_DATABASE_URL: postgresql+psycopg://dhm:${POSTGRES_PASSWORD}@db:5432/dhm
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    <<: *backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      retries: 3
+
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=INFO", "--concurrency=2"]
+
+  scheduler:
+    <<: *backend
+    # Exactly one scheduler instance. All jobs are idempotent, so a restart or a doubled tick is harmless.
+    command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
+
+  frontend:
+    build:
+      context: ./frontend
+      args: { BACKEND_URL: "http://api:8000" }
+    ports: ["3000:3000"]
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

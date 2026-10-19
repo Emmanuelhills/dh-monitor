@@ -1,0 +1,25 @@
+name: Scheduled checks
+
+# Runs domain/hosting checks, expiration evaluation and reminder emails every 15 minutes by
+# calling the API's cron endpoint. (Vercel's free plan only allows a daily cron; this fills the gap.)
+# Requires repository secrets API_URL (e.g. https://your-api.vercel.app) and CRON_SECRET.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call /api/v1/cron/run
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "API_URL / CRON_SECRET secrets not set; skipping."; exit 0
+          fi
+          curl --fail-with-body -sS --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" "${API_URL%/}/api/v1/cron/run"

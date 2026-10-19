@@ -1,0 +1,25 @@
+# secrets & local config
+.env
+*.env.local
+admin-credentials.txt
+
+# python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+celerybeat-schedule*
+
+# node / next
+frontend/node_modules/
+frontend/.next/
+frontend/next-env.d.ts
+frontend/*.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
+
+# backups
+backups/
+
+# vercel
+.vercel/
