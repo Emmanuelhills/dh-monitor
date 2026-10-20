@@ -95,12 +95,12 @@ export default function DashboardPage() {
         <div className="column">
           <h2 className="column-title"><Link href="/domains">Domains</Link></h2>
           {d && <SummaryCards counts={d.domains} />}
-          <DomainTable title="Domain list" pageSize={10} storageKey="dash-domains" compact />
+          <DomainTable title="Domain list" storageKey="dash-domains" compact />
         </div>
         <div className="column">
           <h2 className="column-title"><Link href="/hosting">Hosting plans</Link></h2>
           {d && <SummaryCards counts={d.hosting} />}
-          <HostingTable title="Hosting list" pageSize={10} storageKey="dash-hosting" compact />
+          <HostingTable title="Hosting list" storageKey="dash-hosting" compact />
         </div>
       </div>
 

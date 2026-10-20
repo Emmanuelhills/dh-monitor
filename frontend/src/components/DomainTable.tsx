@@ -7,7 +7,7 @@ import { formatDate } from "@/lib/format";
 import { useAsync, useDebounced } from "@/lib/hooks";
 import type { Domain, Hosting, Page, Registrar } from "@/lib/types";
 import { ExpirationBadge, ExpiryDot, MonitoringBadge, ServiceBadge, UsageBadge } from "./Badges";
-import { Empty, ErrorAlert, Loading, Pagination, SortHeader, useSessionState } from "./ui";
+import { DEFAULT_PAGE_SIZE, Empty, ErrorAlert, Loading, Pagination, SortHeader, useSessionState } from "./ui";
 
 interface Filters {
   search: string;
@@ -21,6 +21,7 @@ interface Filters {
   sort: string;
   order: "asc" | "desc";
   archived: boolean;
+  pageSize: number;
 }
 
 const DEFAULTS: Filters = {
@@ -35,17 +36,18 @@ const DEFAULTS: Filters = {
   sort: "name",
   order: "asc",
   archived: false,
+  pageSize: DEFAULT_PAGE_SIZE,
 };
 
 /** Domain list. `compact` renders a narrow three-column version for side-by-side layouts. */
-export function DomainTable({ title = "Domains", pageSize = 25, storageKey = "domain-filters", compact = false }: {
+export function DomainTable({ title = "Domains", storageKey = "domain-filters", compact = false }: {
   title?: string;
-  pageSize?: number;
   storageKey?: string;
   compact?: boolean;
 }) {
   const [filters, setFilters] = useSessionState<Filters>(storageKey, DEFAULTS);
   const [page, setPage] = useState(1);
+  const pageSize = filters.pageSize || DEFAULT_PAGE_SIZE;
   const search = useDebounced(filters.search);
 
   const update = (patch: Partial<Filters>) => {
@@ -81,7 +83,7 @@ export function DomainTable({ title = "Domains", pageSize = 25, storageKey = "do
       filters.expiration, filters.archived, filters.sort, filters.order, page, pageSize],
   );
 
-  const filtered = JSON.stringify({ ...filters, sort: "", order: "" }) !== JSON.stringify({ ...DEFAULTS, sort: "", order: "" });
+  const filtered = JSON.stringify({ ...filters, sort: "", order: "", pageSize: 0 }) !== JSON.stringify({ ...DEFAULTS, sort: "", order: "", pageSize: 0 });
   const onSort = (sort: string, order: "asc" | "desc") => update({ sort, order });
   const id = (suffix: string) => `${storageKey}-${suffix}`;
 
@@ -169,7 +171,7 @@ export function DomainTable({ title = "Domains", pageSize = 25, storageKey = "do
           </label>
         )}
         {filtered && (
-          <button className="btn small" onClick={() => update({ ...DEFAULTS, sort: filters.sort, order: filters.order })}>
+          <button className="btn small" onClick={() => update({ ...DEFAULTS, sort: filters.sort, order: filters.order, pageSize: filters.pageSize })}>
             Clear filters
           </button>
         )}
@@ -256,7 +258,8 @@ export function DomainTable({ title = "Domains", pageSize = 25, storageKey = "do
           </table>
         </div>
       )}
-      {list.data && <Pagination page={page} pageSize={pageSize} total={list.data.total} onPage={setPage} />}
+      {list.data && <Pagination page={page} pageSize={pageSize} total={list.data.total} onPage={setPage}
+        onPageSize={(size) => update({ pageSize: size })} />}
     </section>
   );
 }

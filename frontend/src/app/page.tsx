@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ExpirationBadge, ExpiryDot, ServiceBadge, UsageBadge } from "@/components/Badges";
 import { SummaryCards } from "@/components/SummaryCards";
-import { Empty, ErrorAlert, Loading } from "@/components/ui";
+import { DEFAULT_PAGE_SIZE, Empty, ErrorAlert, Loading, Pagination } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -89,6 +89,10 @@ export default function PublicOverviewPage() {
   const [usage, setUsage] = useState("");
   const [window_, setWindow] = useState<Window>("");
   const [sort, setSort] = useState<Sort>("name");
+  const [domainPage, setDomainPage] = useState(1);
+  const [domainSize, setDomainSize] = useState(DEFAULT_PAGE_SIZE);
+  const [hostingPage, setHostingPage] = useState(1);
+  const [hostingSize, setHostingSize] = useState(DEFAULT_PAGE_SIZE);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,6 +141,11 @@ export default function PublicOverviewPage() {
     );
     return sort === "expiration" ? [...rows].sort(byExpiration) : rows;
   }, [data, term, usage, window_, sort]);
+
+  // Back to the first page whenever the search, filters or sort change.
+  useEffect(() => { setDomainPage(1); setHostingPage(1); }, [term, usage, window_, sort]);
+  const pagedDomains = domains.slice((domainPage - 1) * domainSize, domainPage * domainSize);
+  const pagedHosting = hosting.slice((hostingPage - 1) * hostingSize, hostingPage * hostingSize);
 
   const domainCounts = useMemo(() => summarize(data?.domains ?? []), [data]);
   const hostingCounts = useMemo(() => summarize(data?.hosting ?? []), [data]);
@@ -216,7 +225,7 @@ export default function PublicOverviewPage() {
                     <table className="data responsive">
                       <thead><tr><th>Domain</th><th>Expiration</th><th>Status</th></tr></thead>
                       <tbody>
-                        {domains.map((d) => (
+                        {pagedDomains.map((d) => (
                           <tr key={d.id}>
                             <td className="name" data-label="Domain">
                               <span className="name-cell">
@@ -243,6 +252,8 @@ export default function PublicOverviewPage() {
                     </table>
                   </div>
                 )}
+                <Pagination page={domainPage} pageSize={domainSize} total={domains.length} onPage={setDomainPage}
+                  onPageSize={(n) => { setDomainSize(n); setDomainPage(1); }} />
               </section>
             </div>
 
@@ -258,7 +269,7 @@ export default function PublicOverviewPage() {
                     <table className="data responsive">
                       <thead><tr><th>Hosting plan</th><th>Expiration</th><th>Status</th></tr></thead>
                       <tbody>
-                        {hosting.map((h) => (
+                        {pagedHosting.map((h) => (
                           <tr key={h.id}>
                             <td className="name" data-label="Hosting plan">
                               <span className="name-cell">
@@ -285,6 +296,8 @@ export default function PublicOverviewPage() {
                     </table>
                   </div>
                 )}
+                <Pagination page={hostingPage} pageSize={hostingSize} total={hosting.length} onPage={setHostingPage}
+                  onPageSize={(n) => { setHostingSize(n); setHostingPage(1); }} />
               </section>
             </div>
           </div>

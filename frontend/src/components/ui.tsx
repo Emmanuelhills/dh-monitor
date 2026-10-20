@@ -32,35 +32,77 @@ export function Empty({ title, children }: { title: string; children?: React.Rea
   );
 }
 
+export const DEFAULT_PAGE_SIZE = 10;
+export const MAX_PAGE_SIZE = 100;
+
+function ArrowIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden focusable="false">
+      <path
+        d={direction === "left" ? "M10 3 5 8l5 5" : "M6 3l5 5-5 5"}
+        fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Previous/next arrows, page position, and an editable "per page" size (1–100). */
 export function Pagination({
   page,
   pageSize,
   total,
   onPage,
+  onPageSize,
 }: {
   page: number;
   pageSize: number;
   total: number;
   onPage: (page: number) => void;
+  onPageSize?: (size: number) => void;
 }) {
+  const sizeId = useId();
+  const [draft, setDraft] = useState(String(pageSize));
+  useEffect(() => setDraft(String(pageSize)), [pageSize]);
+  if (total === 0) return null;
+
   const pages = Math.max(1, Math.ceil(total / pageSize));
-  if (total <= pageSize) return null;
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
+
+  const commit = () => {
+    const n = Math.round(Number(draft));
+    if (!Number.isFinite(n) || n < 1) return setDraft(String(pageSize));
+    const size = Math.min(n, MAX_PAGE_SIZE);
+    setDraft(String(size));
+    if (size !== pageSize) onPageSize?.(size);
+  };
+
   return (
     <nav className="pagination" aria-label="Pagination">
       <span className="muted small">
         {from}–{to} of {total}
       </span>
-      <span className="btn-row">
-        <button className="btn small" disabled={page <= 1} onClick={() => onPage(page - 1)}>
-          Previous
+      <span className="pager">
+        {onPageSize && (
+          <span className="per-page">
+            <label htmlFor={sizeId} className="small muted">Per page</label>
+            <input
+              id={sizeId} type="number" inputMode="numeric" min={1} max={MAX_PAGE_SIZE} value={draft}
+              onChange={(e) => setDraft(e.target.value)} onBlur={commit}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
+            />
+          </span>
+        )}
+        <button className="icon-btn" aria-label="Previous page" title="Previous page"
+          disabled={page <= 1} onClick={() => onPage(page - 1)}>
+          <ArrowIcon direction="left" />
         </button>
-        <span className="small muted" style={{ alignSelf: "center" }}>
-          Page {page} of {pages}
+        <span className="small muted" aria-live="polite">
+          {page} / {pages}
         </span>
-        <button className="btn small" disabled={page >= pages} onClick={() => onPage(page + 1)}>
-          Next
+        <button className="icon-btn" aria-label="Next page" title="Next page"
+          disabled={page >= pages} onClick={() => onPage(page + 1)}>
+          <ArrowIcon direction="right" />
         </button>
       </span>
     </nav>
