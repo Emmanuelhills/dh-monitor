@@ -43,7 +43,12 @@ def install_error_handlers(app: FastAPI) -> None:
         details = None
         if exc.status_code == 404:
             # Helps diagnose proxy/rewrite setups: which path did the app actually receive?
-            details = {"path": request.scope.get("path"), "root_path": request.scope.get("root_path") or ""}
+            details = {
+                "path": request.scope.get("path"),
+                "root_path": request.scope.get("root_path") or "",
+                "query_keys": sorted(request.query_params.keys()),
+                "build": "path-fix-2",
+            }
         return JSONResponse(
             status_code=exc.status_code, content=_body(f"http_{exc.status_code}", str(exc.detail), details)
         )

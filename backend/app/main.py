@@ -7,6 +7,7 @@ from app.api import (
 from app.api.errors import install_error_handlers
 from app.config import get_settings
 from app.logging_setup import configure_logging
+from app.vercel_path import VercelPathMiddleware
 
 API_PREFIX = "/api/v1"
 
@@ -22,6 +23,8 @@ def create_app() -> FastAPI:
         openapi_url=None if config.is_production else f"{API_PREFIX}/openapi.json",
     )
     install_error_handlers(app)
+    # Outermost: undo the Vercel function rewrite before anything else sees the path.
+    app.add_middleware(VercelPathMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.cors_origins,
