@@ -6,6 +6,6 @@
       "excludeFiles": "{.venv/**,tests/**,**/__pycache__/**,alembic/**}"
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index?__path=$1" }],
   "crons": [{ "path": "/api/v1/cron/run", "schedule": "0 6 * * *" }]
 }
