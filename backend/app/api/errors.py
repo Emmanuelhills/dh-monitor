@@ -39,7 +39,11 @@ def install_error_handlers(app: FastAPI) -> None:
         return JSONResponse(status_code=422, content=_body("validation_error", "Invalid request.", details))
 
     @app.exception_handler(StarletteHTTPException)
-    async def _http_error(_: Request, exc: StarletteHTTPException):
+    async def _http_error(request: Request, exc: StarletteHTTPException):
+        details = None
+        if exc.status_code == 404:
+            # Helps diagnose proxy/rewrite setups: which path did the app actually receive?
+            details = {"path": request.scope.get("path"), "root_path": request.scope.get("root_path") or ""}
         return JSONResponse(
-            status_code=exc.status_code, content=_body(f"http_{exc.status_code}", str(exc.detail))
+            status_code=exc.status_code, content=_body(f"http_{exc.status_code}", str(exc.detail), details)
         )

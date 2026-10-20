@@ -23,3 +23,7 @@ backups/
 
 # vercel
 .vercel/
+
+# local deployment secrets
+vercel-values.txt
+neon-url*

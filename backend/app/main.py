@@ -40,6 +40,10 @@ def create_app() -> FastAPI:
             response.headers.setdefault("Cache-Control", "no-store")
         return response
 
+    @app.get("/", include_in_schema=False)
+    def root():
+        return {"service": "Domain & Hosting Monitor API", "health": f"{API_PREFIX}/health"}
+
     for module in (auth, cron, domains, hosting, registrars, dashboard, notifications, settings, integrations, public, system):
         app.include_router(module.router, prefix=API_PREFIX)
     return app
