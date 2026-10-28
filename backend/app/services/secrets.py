@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.models import SecretValue
 
 SES_CREDENTIALS = "ses_credentials"
+RESEND_CREDENTIALS = "resend_credentials"
 
 
 class SecretStoreError(RuntimeError):

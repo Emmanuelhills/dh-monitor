@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Badge } from "@/components/Badges";
+import { BulkBar, SelectAllHeader, SelectCell, useSelection } from "@/components/BulkSelect";
 import { useToast } from "@/components/Toast";
 import { ConfirmButton, Empty, ErrorAlert, Field, Loading } from "@/components/ui";
 import { ApiError, api, errorMessage } from "@/lib/api";
@@ -101,6 +102,10 @@ export default function RegistrarsPage() {
   const list = useAsync(() => api.get<Registrar[]>("/registrars", { kind }), [kind]);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const selection = useSelection(list.data?.map((r) => r.id) ?? [], kind);
+  const selectedRegistrars = list.data?.filter((r) => selection.has(r.id)) ?? [];
+  const linkedDomains = selectedRegistrars.reduce((n, r) => n + r.domain_count, 0);
+  const linkedHosting = selectedRegistrars.reduce((n, r) => n + r.hosting_count, 0);
 
   async function remove(r: Registrar) {
     try {
@@ -143,22 +148,30 @@ export default function RegistrarsPage() {
         {list.data && list.data.length === 0 && (
           <Empty title="No registrars yet">Add the companies you buy domains and hosting from.</Empty>
         )}
+        <BulkBar selection={selection} onDone={list.reload} actions={[{
+          label: "Delete selected", title: `Delete ${selection.count} registrar(s)?`, path: "/registrars/bulk-delete",
+          done: "deleted", noun: ["registrar", "registrars"],
+          message: linkedDomains || linkedHosting
+            ? `${linkedDomains} domain(s) and ${linkedHosting} hosting plan(s) will no longer be linked to them. They are not deleted, and hosting plans keep the company name as text.`
+            : "The selected registrars aren't used by any domain or hosting plan.",
+        }]} />
         {list.data && list.data.length > 0 && (
           <div className="table-wrap">
             <table className="data responsive">
               <thead>
-                <tr><th>Name</th><th>Provides</th><th>Domains</th><th>Hosting plans</th><th /></tr>
+                <tr><SelectAllHeader selection={selection} label="Select all registrars" /><th>Name</th><th>Provides</th><th>Domains</th><th>Hosting plans</th><th /></tr>
               </thead>
               <tbody>
                 {list.data.map((r) =>
                   editing === r.id ? (
                     <tr key={r.id}>
-                      <td colSpan={5} style={{ padding: 0 }}>
+                      <td colSpan={6} style={{ padding: 0 }}>
                         <RegistrarForm registrar={r} onCancel={() => setEditing(null)} onDone={() => { setEditing(null); list.reload(); }} />
                       </td>
                     </tr>
                   ) : (
-                    <tr key={r.id}>
+                    <tr key={r.id} className={selection.has(r.id) ? "selected" : undefined}>
+                      <SelectCell selection={selection} id={r.id} label={`Select ${r.name}`} />
                       <td className="name" data-label="Name">
                         {r.name}
                         {r.website && (

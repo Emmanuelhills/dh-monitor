@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { errorMessage } from "@/lib/api";
+import { PasswordInput } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 
 function safeNext(): string {
@@ -59,7 +60,7 @@ export default function LoginPage() {
           </div>
           <div className="field">
             <label htmlFor="password">Password</label>
-            <input id="password" type="password" autoComplete="current-password" required value={password}
+            <PasswordInput id="password" autoComplete="current-password" required value={password}
               onChange={(e) => setPassword(e.target.value)} />
           </div>
           <button className="btn primary" type="submit" disabled={busy || !email || !password}>

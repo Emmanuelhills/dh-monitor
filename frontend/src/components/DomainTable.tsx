@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { useAsync, useDebounced } from "@/lib/hooks";
 import type { Domain, Hosting, Page, Registrar } from "@/lib/types";
+import { BulkBar, SelectAllHeader, SelectCell, useSelection, type BulkAction } from "./BulkSelect";
 import { ExpirationBadge, ExpiryDot, MonitoringBadge, ServiceBadge, UsageBadge } from "./Badges";
 import { DEFAULT_PAGE_SIZE, Empty, ErrorAlert, Loading, Pagination, SortHeader, useSessionState } from "./ui";
 
@@ -82,6 +83,23 @@ export function DomainTable({ title = "Domains", storageKey = "domain-filters", 
     [search, filters.hosting, filters.registrar, filters.provider, filters.usage, filters.service, filters.monitoring,
       filters.expiration, filters.archived, filters.sort, filters.order, page, pageSize],
   );
+
+  const selection = useSelection(
+    list.data?.items.map((d) => d.id) ?? [],
+    JSON.stringify([search, filters, page, pageSize]),
+  );
+  const selectable = !compact;
+  const bulkActions: BulkAction[] = filters.archived
+    ? [{
+        label: "Delete permanently", title: `Delete ${selection.count} domain(s) permanently?`, path: "/domains/bulk-delete",
+        permanent: true, done: "deleted", noun: ["domain", "domains"],
+        message: "This removes the selected domains and their monitoring and reminder history. Their hosting accounts are not affected. This cannot be undone.",
+      }]
+    : [{
+        label: "Archive selected", title: `Archive ${selection.count} domain(s)?`, path: "/domains/bulk-delete",
+        permanent: false, done: "archived", noun: ["domain", "domains"],
+        message: "The selected domains leave the active lists, checks stop and queued reminders are cancelled. Their hosting accounts are not affected. You can restore them from the Archived view.",
+      }];
 
   const filtered = JSON.stringify({ ...filters, sort: "", order: "", pageSize: 0 }) !== JSON.stringify({ ...DEFAULTS, sort: "", order: "", pageSize: 0 });
   const onSort = (sort: string, order: "asc" | "desc") => update({ sort, order });
@@ -184,11 +202,13 @@ export function DomainTable({ title = "Domains", storageKey = "domain-filters", 
           {filtered ? "Try clearing some filters." : <Link href="/domains/new">Add your first domain</Link>}
         </Empty>
       )}
+      {selectable && <BulkBar selection={selection} actions={bulkActions} onDone={() => (page === 1 ? list.reload() : setPage(1))} />}
       {list.data && list.data.items.length > 0 && (
         <div className="table-wrap" aria-busy={list.loading}>
           <table className="data responsive">
             <thead>
               <tr>
+                {selectable && <SelectAllHeader selection={selection} label="Select all domains on this page" />}
                 <SortHeader label="Domain" field="name" sort={filters.sort} order={filters.order} onSort={onSort} />
                 {!compact && <th>Hosting account</th>}
                 {!compact && <th>Registrar</th>}
@@ -204,7 +224,8 @@ export function DomainTable({ title = "Domains", storageKey = "domain-filters", 
             </thead>
             <tbody>
               {list.data.items.map((d) => (
-                <tr key={d.id}>
+                <tr key={d.id} className={selection.has(d.id) ? "selected" : undefined}>
+                  {selectable && <SelectCell selection={selection} id={d.id} label={`Select ${d.display_name}`} />}
                   <td className="name" data-label="Domain">
                     <span className="name-cell">
                       <ExpiryDot expiration={d.expiration} />

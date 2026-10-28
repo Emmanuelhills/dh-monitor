@@ -128,6 +128,21 @@ public; put it behind your VPN or reverse-proxy access rules if it shouldn't be.
 5. In *Settings → Email*: region, sender, recipients and schedule. Then **Validate only** and
    **Send test email**.
 
+## Resend (alternative to SES)
+
+*Settings → Email → Email sender* switches between **Amazon SES** and **Resend**. Only the selected
+one sends; the other's settings are kept.
+
+1. At resend.com, add and verify your sending domain (DNS records).
+2. Create an API key. *Sending access* is enough, though *Full access* also lets **Validate only**
+   confirm that the sender's domain is verified.
+3. Choose **Resend**, enter the sender address (on the verified domain) and the API key, then save.
+   The key is stored encrypted and never shown again.
+4. **Validate only**, then **Send test email**.
+
+Retries and error handling work the same as with SES: rate limits and server errors are retried,
+and rejections fail immediately.
+
 ## Hosting provider integrations
 
 *Settings → Provider integrations*. Built-in adapters:

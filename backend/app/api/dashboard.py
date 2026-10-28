@@ -17,6 +17,7 @@ from app.models import (
     ServiceStatus,
     UsageStatus,
 )
+from app.notifications.mailer import is_configured, provider_label
 from app.services.expiration import expiration_info
 
 router = APIRouter(tags=["dashboard"])
@@ -127,8 +128,8 @@ def _warnings(clock: Clock, scheduler_stale: bool) -> list[str]:
         warnings.append("Email reminders are turned off.")
     elif not s.notification_recipients:
         warnings.append("No reminder recipients are configured.")
-    elif not s.ses_sender or not s.ses_region:
-        warnings.append("Amazon SES is not fully configured.")
+    elif not is_configured(s):
+        warnings.append(f"{provider_label(s)} is not fully configured.")
     if scheduler_stale:
         warnings.append("Background jobs have not run recently. Check that the worker and scheduler are running.")
     return warnings

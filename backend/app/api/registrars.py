@@ -13,6 +13,7 @@ from app.api.errors import ApiError, not_found
 from app.db import get_db
 from app.models import Domain, HostingAccount, Registrar
 from app.schemas import RegistrarIn, RegistrarOut
+from app.schemas_bulk import BulkDeleteIn, BulkDeleteOut, unique_ids
 from app.services.audit import diff_fields, record_audit
 
 router = APIRouter(prefix="/registrars", tags=["registrars"])
@@ -130,16 +131,30 @@ def update_registrar(
     return _out(db, registrar)
 
 
-@router.delete("/{registrar_id}", status_code=204)
-def delete_registrar(registrar_id: uuid.UUID, ctx: AuthContext = Depends(require_admin), db: Session = Depends(get_db)):
+def _delete(db: Session, registrar: Registrar, ctx: AuthContext) -> None:
     """Linked domains and hosting accounts are kept; their registrar link is cleared
     (hosting accounts keep the company name as text)."""
-    registrar = _get(db, registrar_id)
     domains, hosting = _counts(db, registrar.id)
     record_audit(db, "registrar_deleted", user=ctx.user, record_type="registrar", record_id=registrar.id,
                  details={"name": registrar.name, "unlinked_domains": domains, "unlinked_hosting": hosting},
                  ip_address=ctx.ip)
     db.delete(registrar)
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteOut)
+def bulk_delete_registrars(body: BulkDeleteIn, ctx: AuthContext = Depends(require_admin), db: Session = Depends(get_db)):
+    """Delete several registrars in one transaction (always permanent, like a single delete).
+    If any id is unknown, nothing is changed."""
+    registrars = [_get(db, registrar_id) for registrar_id in unique_ids(body.ids)]
+    for registrar in registrars:
+        _delete(db, registrar, ctx)
+    db.commit()
+    return BulkDeleteOut(deleted=len(registrars))
+
+
+@router.delete("/{registrar_id}", status_code=204)
+def delete_registrar(registrar_id: uuid.UUID, ctx: AuthContext = Depends(require_admin), db: Session = Depends(get_db)):
+    _delete(db, _get(db, registrar_id), ctx)
     db.commit()
     return Response(status_code=204)
 

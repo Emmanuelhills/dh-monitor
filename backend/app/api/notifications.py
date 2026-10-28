@@ -11,7 +11,7 @@ from app.api.errors import ApiError, not_found
 from app.config import get_settings
 from app.db import get_db
 from app.models import DeliveryStatus, NotificationEvent, RecordType, SesAuthMethod
-from app.notifications.ses import SesError, send_email, validate_configuration
+from app.notifications.mailer import EmailError, provider_label, send_email, sender_of, validate_configuration
 from app.notifications.template import render_test_email
 from app.schemas import (
     NotificationOut,
@@ -23,7 +23,14 @@ from app.schemas import (
 )
 from app.services.app_settings import get_app_settings
 from app.services.audit import diff_fields, record_audit
-from app.services.secrets import SES_CREDENTIALS, SecretStoreError, delete_secret, has_secret, put_secret
+from app.services.secrets import (
+    RESEND_CREDENTIALS,
+    SES_CREDENTIALS,
+    SecretStoreError,
+    delete_secret,
+    has_secret,
+    put_secret,
+)
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -37,6 +44,9 @@ def _settings_out(db: Session) -> dict:
         "remind_on_expiration_day": s.remind_on_expiration_day,
         "overdue_reminder_days": s.overdue_reminder_days,
         "remind_suspended": s.remind_suspended,
+        "email_provider": s.email_provider or "ses",
+        "resend_sender": s.resend_sender,
+        "resend_api_key_set": has_secret(db, RESEND_CREDENTIALS),
         "ses_region": s.ses_region,
         "ses_sender": s.ses_sender,
         "ses_configuration_set": s.ses_configuration_set,
@@ -84,15 +94,19 @@ def update_notification_settings(
     body: NotificationSettingsIn, ctx: AuthContext = Depends(require_admin), db: Session = Depends(get_db)
 ):
     settings = get_app_settings(db)
-    data = body.model_dump(exclude_unset=True, exclude={"ses_credentials", "clear_ses_credentials"})
+    data = body.model_dump(exclude_unset=True, exclude={"ses_credentials", "clear_ses_credentials",
+                                                              "resend_api_key", "clear_resend_api_key"})
     for field in ("notifications_enabled", "reminder_days_before", "remind_on_expiration_day",
-                  "overdue_reminder_days", "remind_suspended", "ses_auth_method", "notification_recipients"):
+                  "overdue_reminder_days", "remind_suspended", "ses_auth_method", "notification_recipients",
+                  "email_provider"):
         if field in data and data[field] is None:
             raise ApiError(422, "validation_error", f"{field} cannot be null.")
     if "notification_recipients" in data:
         data["notification_recipients"] = sorted({str(r).strip().lower() for r in data["notification_recipients"]})
     if "ses_sender" in data and data["ses_sender"]:
         data["ses_sender"] = str(data["ses_sender"]).strip()
+    if "resend_sender" in data and data["resend_sender"]:
+        data["resend_sender"] = str(data["resend_sender"]).strip()
     if "ses_configuration_set" in data:
         data["ses_configuration_set"] = (data["ses_configuration_set"] or "").strip() or None
 
@@ -107,6 +121,12 @@ def update_notification_settings(
         elif body.ses_credentials is not None:
             put_secret(db, SES_CREDENTIALS, body.ses_credentials.model_dump())
             changes["ses_credentials"] = {"from": "[hidden]", "to": "[updated]"}
+        if body.clear_resend_api_key:
+            delete_secret(db, RESEND_CREDENTIALS)
+            changes["resend_api_key"] = {"from": "[set]", "to": "[cleared]"}
+        elif body.resend_api_key is not None:
+            put_secret(db, RESEND_CREDENTIALS, {"api_key": body.resend_api_key.strip()})
+            changes["resend_api_key"] = {"from": "[hidden]", "to": "[updated]"}
     except SecretStoreError as exc:
         raise ApiError(500, "secret_store_unavailable", str(exc)) from None
 
@@ -114,6 +134,10 @@ def update_notification_settings(
             and body.ses_credentials is None:
         db.rollback()
         raise ApiError(422, "credentials_required", "Enter AWS access keys or choose the IAM role / default credential chain.")
+    if settings.email_provider == "resend" and not has_secret(db, RESEND_CREDENTIALS) and body.resend_api_key is None:
+        db.rollback()
+        raise ApiError(422, "credentials_required", "Enter a Resend API key to send with Resend.",
+                       [{"field": "resend_api_key", "message": "Enter a Resend API key."}])
     if changes:
         record_audit(db, "notification_settings_updated", user=ctx.user, details={"changes": changes}, ip_address=ctx.ip)
     db.commit()
@@ -122,7 +146,7 @@ def update_notification_settings(
 
 @router.post("/validate", response_model=TestEmailOut)
 def validate_ses(ctx: AuthContext = Depends(require_admin), db: Session = Depends(get_db)):
-    """Check SES credentials, account sending status and sender verification without sending."""
+    """Check the selected provider's credentials and sender verification without sending."""
     settings = get_app_settings(db)
     checks = validate_configuration(db, settings)
     settings.ses_last_validated_at = datetime.now(timezone.utc)
@@ -140,7 +164,7 @@ def validate_ses(ctx: AuthContext = Depends(require_admin), db: Session = Depend
 
 @router.post("/test", response_model=TestEmailOut)
 def send_test_email(body: TestEmailIn, ctx: AuthContext = Depends(require_admin), db: Session = Depends(get_db)):
-    """Validate the configuration and ask SES to accept a test message. Acceptance by SES is
+    """Validate the configuration and ask the selected provider to accept a test message. Acceptance is
     reported; inbox delivery cannot be confirmed by this call."""
     settings = get_app_settings(db)
     recipient = (str(body.recipient) if body.recipient else None) or next(iter(settings.notification_recipients or []), None)
@@ -155,14 +179,14 @@ def send_test_email(body: TestEmailIn, ctx: AuthContext = Depends(require_admin)
         id=uuid.uuid4(), dedupe_key=f"test|{uuid.uuid4()}", is_test=True, reminder_interval="test",
         recipient=recipient.lower(), delivery_status=DeliveryStatus.sending, attempt_count=1, last_attempt_at=now,
     )
-    email = render_test_email(settings.ses_sender or "")
+    email = render_test_email(sender_of(settings) or "", provider_label(settings))
     email.to = recipient
     event.subject = email.subject
     db.add(event)
     db.flush()
     try:
         message_id = send_email(db, settings, email)
-    except SesError as exc:
+    except EmailError as exc:
         event.delivery_status = DeliveryStatus.failed
         event.last_error = exc.message
         record_audit(db, "ses_test_failed", user=ctx.user, details={"recipient": recipient, "error": exc.message},
@@ -177,7 +201,7 @@ def send_test_email(body: TestEmailIn, ctx: AuthContext = Depends(require_admin)
     return {
         "ok": True,
         "accepted": True,
-        "message": f"Amazon SES accepted the test message for {recipient}. Check the inbox to confirm delivery.",
+        "message": f"{provider_label(settings)} accepted the test message for {recipient}. Check the inbox to confirm delivery.",
         "checks": checks,
         "provider_message_id": message_id or None,
     }

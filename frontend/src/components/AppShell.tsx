@@ -16,8 +16,9 @@ const NAV = [
 ];
 
 const SETTINGS_NAV = [
-  { href: "/settings/email", label: "Email (Amazon SES)" },
+  { href: "/settings/email", label: "Email" },
   { href: "/settings/integrations", label: "Provider integrations" },
+  { href: "/settings/admins", label: "Administrators" },
   { href: "/settings", label: "General", exact: true },
 ];
 

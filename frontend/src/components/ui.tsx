@@ -246,3 +246,29 @@ export function useSessionState<T>(key: string, initial: T): [T, (value: T) => v
   };
   return [value, update];
 }
+
+function EyeIcon({ open }: { open: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden focusable="false" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="3" />
+      {!open && <path d="M4 4l16 16" />}
+    </svg>
+  );
+}
+
+/** Password input with a show/hide toggle. It only reveals what the user typed; saved secrets are never sent to the browser. */
+export function PasswordInput(props: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <span className="password-input">
+      <input {...props} type={visible ? "text" : "password"} spellCheck={false} autoCapitalize="off" />
+      <button type="button" className="reveal" onClick={() => setVisible(!visible)}
+        aria-label={visible ? "Hide password" : "Show password"} aria-pressed={visible}
+        title={visible ? "Hide password" : "Show password"}>
+        <EyeIcon open={!visible} />
+      </button>
+    </span>
+  );
+}

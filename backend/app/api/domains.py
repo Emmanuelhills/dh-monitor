@@ -23,6 +23,7 @@ from app.api.deps import AuthContext, require_admin
 from app.api.errors import ApiError, not_found
 from app.api.registrars import RegistrarKind, validate_registrar
 from app.db import get_db
+from app.schemas_bulk import BulkDeleteIn, BulkDeleteOut, unique_ids
 from app.models import (
     DataSource,
     Domain,
@@ -269,16 +270,8 @@ def update_domain(
     return domain_out(_get(db, domain.id), clock.today, clock.now, clock.settings)
 
 
-@router.delete("/{domain_id}", status_code=204)
-def delete_domain(
-    domain_id: uuid.UUID,
-    permanent: bool = False,
-    clock: Clock = Depends(get_clock),
-    ctx: AuthContext = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
+def _delete(db: Session, domain: Domain, permanent: bool, clock: Clock, ctx: AuthContext) -> None:
     """Archive (default) or permanently delete a domain. Never touches its hosting account."""
-    domain = _get(db, domain_id)
     if permanent:
         record_audit(db, "domain_deleted", user=ctx.user, record_type="domain", record_id=domain.id,
                      details={"domain_name": domain.normalized_domain_name}, ip_address=ctx.ip)
@@ -289,6 +282,33 @@ def delete_domain(
         cancel_obsolete_notifications(db, domain, clock.settings)
         record_audit(db, "domain_archived", user=ctx.user, record_type="domain", record_id=domain.id,
                      ip_address=ctx.ip)
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteOut)
+def bulk_delete_domains(
+    body: BulkDeleteIn,
+    clock: Clock = Depends(get_clock),
+    ctx: AuthContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Archive or permanently delete several domains in one transaction. If any id is unknown,
+    nothing is changed."""
+    domains = [_get(db, domain_id) for domain_id in unique_ids(body.ids)]
+    for domain in domains:
+        _delete(db, domain, body.permanent, clock, ctx)
+    db.commit()
+    return BulkDeleteOut(deleted=len(domains))
+
+
+@router.delete("/{domain_id}", status_code=204)
+def delete_domain(
+    domain_id: uuid.UUID,
+    permanent: bool = False,
+    clock: Clock = Depends(get_clock),
+    ctx: AuthContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    _delete(db, _get(db, domain_id), permanent, clock, ctx)
     db.commit()
     return Response(status_code=204)
 

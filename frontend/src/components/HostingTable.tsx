@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { useAsync, useDebounced } from "@/lib/hooks";
 import type { Hosting, Page } from "@/lib/types";
+import { BulkBar, SelectAllHeader, SelectCell, useSelection, type BulkAction } from "./BulkSelect";
 import { ExpirationBadge, ExpiryDot, MonitoringBadge, ServiceBadge, UsageBadge } from "./Badges";
 import { DEFAULT_PAGE_SIZE, Empty, ErrorAlert, Loading, Pagination, SortHeader, useSessionState } from "./ui";
 
@@ -69,6 +70,23 @@ export function HostingTable({ title = "Hosting accounts", storageKey = "hosting
     [search, filters.provider, filters.usage, filters.service, filters.monitoring, filters.expiration,
       filters.archived, filters.sort, filters.order, page, pageSize],
   );
+  const selection = useSelection(
+    list.data?.items.map((h) => h.id) ?? [],
+    JSON.stringify([search, filters, page, pageSize]),
+  );
+  const selectable = !compact;
+  const bulkActions: BulkAction[] = filters.archived
+    ? [{
+        label: "Delete permanently", title: `Delete ${selection.count} hosting plan(s) permanently?`,
+        path: "/hosting-accounts/bulk-delete", permanent: true, done: "deleted", noun: ["hosting plan", "hosting plans"],
+        message: "This removes the selected hosting plans and their history. Their domains are kept and become unassigned. This cannot be undone.",
+      }]
+    : [{
+        label: "Archive selected", title: `Archive ${selection.count} hosting plan(s)?`,
+        path: "/hosting-accounts/bulk-delete", permanent: false, done: "archived", noun: ["hosting plan", "hosting plans"],
+        message: "Checks stop and queued reminders are cancelled for the selected hosting plans. Their domains are not deleted. You can restore them from the Archived view.",
+      }];
+
   const filtered = JSON.stringify({ ...filters, sort: "", order: "", pageSize: 0 }) !== JSON.stringify({ ...DEFAULTS, sort: "", order: "", pageSize: 0 });
   const onSort = (sort: string, order: "asc" | "desc") => update({ sort, order });
   const id = (suffix: string) => `${storageKey}-${suffix}`;
@@ -150,11 +168,13 @@ export function HostingTable({ title = "Hosting accounts", storageKey = "hosting
           {filtered ? "Try clearing some filters." : <Link href="/hosting/new">Add a hosting account</Link>}
         </Empty>
       )}
+      {selectable && <BulkBar selection={selection} actions={bulkActions} onDone={() => (page === 1 ? list.reload() : setPage(1))} />}
       {list.data && list.data.items.length > 0 && (
         <div className="table-wrap" aria-busy={list.loading}>
           <table className="data responsive">
             <thead>
               <tr>
+                {selectable && <SelectAllHeader selection={selection} label="Select all hosting plans on this page" />}
                 <SortHeader label="Hosting plan" field="name" sort={filters.sort} order={filters.order} onSort={onSort} />
                 {!compact && <SortHeader label="Company" field="provider_name" sort={filters.sort} order={filters.order} onSort={onSort} />}
                 {!compact && <SortHeader label="Domains" field="domain_count" sort={filters.sort} order={filters.order} onSort={onSort} />}
@@ -170,7 +190,8 @@ export function HostingTable({ title = "Hosting accounts", storageKey = "hosting
             </thead>
             <tbody>
               {list.data.items.map((h) => (
-                <tr key={h.id}>
+                <tr key={h.id} className={selection.has(h.id) ? "selected" : undefined}>
+                  {selectable && <SelectCell selection={selection} id={h.id} label={`Select ${h.name}`} />}
                   <td className="name" data-label="Hosting plan">
                     <span className="name-cell">
                       <ExpiryDot expiration={h.expiration} />

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
-import { ConfirmButton, Empty, ErrorAlert, Field, Loading } from "@/components/ui";
+import { ConfirmButton, Empty, ErrorAlert, Field, Loading, PasswordInput } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
@@ -69,7 +69,7 @@ function IntegrationEditor({ adapter, integration, onDone, onCancel }: {
         {adapter.secret_fields.map((f) => (
           <Field key={f.key} label={`${f.label}${f.required ? "" : " (optional)"}`} htmlFor={`sec-${f.key}`}
             hint={integration?.secret_set ? "Saved and hidden. Enter a value only to replace it." : f.help}>
-            <input id={`sec-${f.key}`} type="password" autoComplete="new-password" value={secrets[f.key] ?? ""}
+            <PasswordInput id={`sec-${f.key}`} autoComplete="new-password" value={secrets[f.key] ?? ""}
               placeholder={integration?.secret_set ? "••••••••" : ""}
               onChange={(e) => setSecrets({ ...secrets, [f.key]: e.target.value })} />
           </Field>

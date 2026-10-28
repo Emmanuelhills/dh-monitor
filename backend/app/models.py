@@ -430,6 +430,9 @@ class ApplicationSettings(Base):
     overdue_reminder_days: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
     remind_suspended: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    # Which service sends email: "ses" (Amazon SES) or "resend".
+    email_provider: Mapped[str] = mapped_column(String(16), nullable=False, default="ses", server_default=text("'ses'"))
+    resend_sender: Mapped[str | None] = mapped_column(String(320))
     ses_region: Mapped[str | None] = mapped_column(String(32))
     ses_sender: Mapped[str | None] = mapped_column(String(320))
     ses_configuration_set: Mapped[str | None] = mapped_column(String(255))

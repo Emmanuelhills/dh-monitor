@@ -74,11 +74,11 @@ def render_reminder(record: Domain | HostingAccount, info: ExpirationInfo, base_
     return OutgoingEmail(to="", subject=subject, text=text, html=html)
 
 
-def render_test_email(sender: str) -> OutgoingEmail:
+def render_test_email(sender: str, provider: str = "Amazon SES") -> OutgoingEmail:
     subject = "Domain & Hosting Monitor: test email"
     text = (
         "This is a test message from Domain & Hosting Monitor.\n\n"
-        f"Amazon SES accepted it from {sender}. Expiration reminders will use the same configuration."
+        f"{provider} accepted it from {sender}. Expiration reminders will use the same configuration."
     )
-    html = f"<p>This is a test message from Domain &amp; Hosting Monitor.</p><p>Amazon SES accepted it from {escape(sender)}. Expiration reminders will use the same configuration.</p>"
+    html = f"<p>This is a test message from Domain &amp; Hosting Monitor.</p><p>{escape(provider)} accepted it from {escape(sender)}. Expiration reminders will use the same configuration.</p>"
     return OutgoingEmail(to="", subject=subject, text=text, html=html)

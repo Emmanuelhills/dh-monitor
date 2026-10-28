@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
-    auth, cron, dashboard, domains, hosting, integrations, notifications, public, registrars, settings, system,
+    auth, cron, dashboard, domains, hosting, integrations, notifications, public, registrars, settings, system, users,
 )
 from app.api.errors import install_error_handlers
 from app.config import get_settings
@@ -47,7 +47,7 @@ def create_app() -> FastAPI:
     def root():
         return {"service": "Domain & Hosting Monitor API", "health": f"{API_PREFIX}/health"}
 
-    for module in (auth, cron, domains, hosting, registrars, dashboard, notifications, settings, integrations, public, system):
+    for module in (auth, cron, domains, hosting, registrars, dashboard, notifications, settings, integrations, public, system, users):
         app.include_router(module.router, prefix=API_PREFIX)
     return app
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/Toast";
-import { ErrorAlert, Field, Loading } from "@/components/ui";
+import { ErrorAlert, Field, Loading, PasswordInput } from "@/components/ui";
 import { ApiError, api, errorMessage } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
@@ -15,19 +15,23 @@ const REGIONS = [
 ];
 
 function ChecksView({ checks }: { checks: SesChecks }) {
-  const row = (label: string, value: boolean | null) => (
+  const isResend = checks.provider === "resend";
+  const row = (label: string, value: boolean | null | undefined) => (
+    value === undefined ? null : (
     <>
       <dt>{label}</dt>
       <dd>{value === null ? <span className="muted">Not checked</span> : value ? "✓ Yes" : <strong style={{ color: "var(--danger-fg)" }}>✗ No</strong>}</dd>
     </>
-  );
+  ));
   return (
     <>
       <dl className="props">
-        {row("Credentials work", checks.credentials)}
-        {row("Sending enabled", checks.sending_enabled)}
-        {row("Production access (out of sandbox)", checks.production_access)}
-        {row("Sender identity verified", checks.sender_verified)}
+        <dt>Checked with</dt>
+        <dd>{isResend ? "Resend" : "Amazon SES"}</dd>
+        {row(isResend ? "API key works" : "Credentials work", checks.credentials)}
+        {!isResend && row("Sending enabled", checks.sending_enabled)}
+        {!isResend && row("Production access (out of sandbox)", checks.production_access)}
+        {row(isResend ? "Sender domain verified" : "Sender identity verified", checks.sender_verified)}
         {checks.quota && (
           <>
             <dt>Quota</dt>
@@ -53,6 +57,7 @@ export default function EmailSettingsPage() {
   const [keyId, setKeyId] = useState("");
   const [secretKey, setSecretKey] = useState("");
   const [sessionToken, setSessionToken] = useState("");
+  const [resendKey, setResendKey] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [testTo, setTestTo] = useState("");
@@ -101,7 +106,10 @@ export default function EmailSettingsPage() {
       ses_sender: s!.ses_sender || null,
       ses_configuration_set: s!.ses_configuration_set || null,
       ses_auth_method: s!.ses_auth_method,
+      email_provider: s!.email_provider,
+      resend_sender: s!.resend_sender || null,
     };
+    if (resendKey.trim()) body.resend_api_key = resendKey.trim();
     if (s!.ses_auth_method === "access_keys" && (keyId || secretKey)) {
       body.ses_credentials = { access_key_id: keyId.trim(), secret_access_key: secretKey.trim(), session_token: sessionToken.trim() || null };
     }
@@ -111,7 +119,7 @@ export default function EmailSettingsPage() {
       const saved = await api.patch<NotificationSettings>("/notifications/settings", body);
       setS(saved);
       setDays(saved.reminder_days_before.join(", "));
-      setKeyId(""); setSecretKey(""); setSessionToken("");
+      setKeyId(""); setSecretKey(""); setSessionToken(""); setResendKey("");
       toast("success", "Email settings saved.");
     } catch (err) {
       if (err instanceof ApiError) setErrors(err.fieldErrors());
@@ -126,6 +134,16 @@ export default function EmailSettingsPage() {
       const saved = await api.patch<NotificationSettings>("/notifications/settings", { clear_ses_credentials: true, ses_auth_method: "default_chain" });
       setS(saved);
       toast("success", "Stored AWS keys removed.");
+    } catch (err) {
+      toast("error", errorMessage(err));
+    }
+  }
+
+  async function clearResendKey() {
+    try {
+      const saved = await api.patch<NotificationSettings>("/notifications/settings", { clear_resend_api_key: true, email_provider: "ses" });
+      setS(saved);
+      toast("success", "Stored Resend API key removed. Email now uses Amazon SES.");
     } catch (err) {
       toast("error", errorMessage(err));
     }
@@ -154,7 +172,7 @@ export default function EmailSettingsPage() {
     <>
       <div className="page-header">
         <div>
-          <h1>Email notifications (Amazon SES)</h1>
+          <h1>Email notifications</h1>
           <p>Reminders go to every recipient for both Active and Inactive records.</p>
         </div>
       </div>
@@ -212,6 +230,55 @@ export default function EmailSettingsPage() {
         </section>
 
         <section className="card">
+          <div className="card-header"><h2>Email sender</h2></div>
+          <div className="card-body form">
+            <fieldset>
+              <legend>Send reminders and test emails with</legend>
+              <label className="checkbox">
+                <input type="radio" name="provider" checked={s.email_provider === "ses"}
+                  onChange={() => set("email_provider", "ses")} />
+                <span><strong>Amazon SES.</strong> Uses your AWS account, region and a verified SES identity.</span>
+              </label>
+              <label className="checkbox">
+                <input type="radio" name="provider" checked={s.email_provider === "resend"}
+                  onChange={() => set("email_provider", "resend")} />
+                <span><strong>Resend.</strong> Uses a Resend API key and a sender on a domain verified at resend.com.</span>
+              </label>
+            </fieldset>
+            <p className="small muted" style={{ margin: 0 }}>
+              Only the selected sender is used. The other one&apos;s settings are kept, so you can switch back at any time.
+            </p>
+          </div>
+        </section>
+
+        {s.email_provider === "resend" && (
+          <section className="card">
+            <div className="card-header"><h2>Resend</h2></div>
+            <div className="card-body form">
+              <div className="form-grid">
+                <Field label="Sender address" htmlFor="rs-sender" error={errors.resend_sender}
+                  hint="Must be on a domain verified in Resend, e.g. alerts@yourdomain.com.">
+                  <input id="rs-sender" type="email" value={s.resend_sender ?? ""} onChange={(e) => set("resend_sender", e.target.value)} />
+                </Field>
+                <Field label="API key" htmlFor="rs-key" error={errors.resend_api_key}
+                  hint={s.resend_api_key_set
+                    ? "A key is saved (encrypted). Enter a new one only to replace it."
+                    : "Create one at resend.com → API Keys. \"Sending access\" is enough. Stored encrypted."}>
+                  <PasswordInput id="rs-key" autoComplete="new-password" value={resendKey}
+                    onChange={(e) => setResendKey(e.target.value)} placeholder={s.resend_api_key_set ? "re_••••••••••••" : "re_..."} />
+                </Field>
+              </div>
+              {s.resend_api_key_set && (
+                <div>
+                  <button type="button" className="btn small danger" onClick={clearResendKey}>Remove stored key</button>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {s.email_provider === "ses" && (
+        <section className="card">
           <div className="card-header"><h2>Amazon SES</h2></div>
           <div className="card-body form">
             <div className="form-grid">
@@ -251,11 +318,11 @@ export default function EmailSettingsPage() {
                       placeholder={s.ses_credentials_set ? "••••••••••••" : ""} />
                   </Field>
                   <Field label="Secret access key" htmlFor="sak" error={errors["ses_credentials.secret_access_key"]}>
-                    <input id="sak" type="password" autoComplete="new-password" value={secretKey}
+                    <PasswordInput id="sak" autoComplete="new-password" value={secretKey}
                       onChange={(e) => setSecretKey(e.target.value)} placeholder={s.ses_credentials_set ? "••••••••••••" : ""} />
                   </Field>
                   <Field label="Session token (temporary credentials only)" htmlFor="stok">
-                    <input id="stok" type="password" autoComplete="off" value={sessionToken} onChange={(e) => setSessionToken(e.target.value)} />
+                    <PasswordInput id="stok" autoComplete="off" value={sessionToken} onChange={(e) => setSessionToken(e.target.value)} />
                   </Field>
                 </div>
               )}
@@ -267,6 +334,7 @@ export default function EmailSettingsPage() {
             </fieldset>
           </div>
         </section>
+        )}
 
         <div className="form-actions">
           <button type="submit" className="btn primary" disabled={busy}>

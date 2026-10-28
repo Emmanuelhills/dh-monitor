@@ -22,6 +22,7 @@ from app.api.deps import AuthContext, require_admin
 from app.api.errors import ApiError, not_found
 from app.api.registrars import RegistrarKind, validate_registrar
 from app.db import get_db
+from app.schemas_bulk import BulkDeleteIn, BulkDeleteOut, unique_ids
 from app.models import (
     DataSource,
     Domain,
@@ -288,17 +289,9 @@ def update_hosting(
     return _detail(db, _get(db, hosting.id), clock)
 
 
-@router.delete("/{hosting_id}", status_code=204)
-def delete_hosting(
-    hosting_id: uuid.UUID,
-    permanent: bool = False,
-    clock: Clock = Depends(get_clock),
-    ctx: AuthContext = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
+def _delete(db: Session, hosting: HostingAccount, permanent: bool, clock: Clock, ctx: AuthContext) -> None:
     """Archive (default) or permanently delete. Domains are never deleted: on permanent delete
     their hosting reference is cleared by the ON DELETE SET NULL foreign key."""
-    hosting = _get(db, hosting_id)
     affected = [str(d.id) for d in active_domains_for_hosting(db, hosting.id)]
     if permanent:
         record_audit(db, "hosting_deleted", user=ctx.user, record_type="hosting", record_id=hosting.id,
@@ -310,6 +303,33 @@ def delete_hosting(
         cancel_obsolete_notifications(db, hosting, clock.settings)
         record_audit(db, "hosting_archived", user=ctx.user, record_type="hosting", record_id=hosting.id,
                      details={"associated_domains": affected}, ip_address=ctx.ip)
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteOut)
+def bulk_delete_hosting(
+    body: BulkDeleteIn,
+    clock: Clock = Depends(get_clock),
+    ctx: AuthContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Archive or permanently delete several hosting accounts in one transaction. If any id is
+    unknown, nothing is changed."""
+    accounts = [_get(db, hosting_id) for hosting_id in unique_ids(body.ids)]
+    for hosting in accounts:
+        _delete(db, hosting, body.permanent, clock, ctx)
+    db.commit()
+    return BulkDeleteOut(deleted=len(accounts))
+
+
+@router.delete("/{hosting_id}", status_code=204)
+def delete_hosting(
+    hosting_id: uuid.UUID,
+    permanent: bool = False,
+    clock: Clock = Depends(get_clock),
+    ctx: AuthContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    _delete(db, _get(db, hosting_id), permanent, clock, ctx)
     db.commit()
     return Response(status_code=204)
 

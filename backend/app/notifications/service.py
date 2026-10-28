@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import DeliveryStatus, Domain, HostingAccount, NotificationEvent, RecordType
 from app.notifications.schedule import current_slot, dedupe_key, ineligibility_reason
-from app.notifications.ses import SesError, send_email
+from app.notifications.mailer import EmailError, send_email
 from app.notifications.template import record_label, render_reminder
 from app.services.app_settings import get_app_settings, schedule_config
 from app.services.expiration import expiration_info, local_today
@@ -139,7 +139,7 @@ def deliver_notification(db: Session, event_id: uuid.UUID, now: datetime | None 
     max_attempts = get_settings().email_max_attempts
     try:
         message_id = send_email(db, settings, email)
-    except SesError as exc:
+    except EmailError as exc:
         event = db.get(NotificationEvent, event_id)
         event.last_error = redact_text(exc.message, 500)
         if exc.transient and event.attempt_count < max_attempts:

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/Toast";
-import { ErrorAlert, Field, Loading } from "@/components/ui";
+import { ErrorAlert, Field, Loading, PasswordInput } from "@/components/ui";
 import { ApiError, api, errorMessage } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import type { GeneralSettings } from "@/lib/types";
@@ -45,13 +45,13 @@ function PasswordForm() {
       {error && <div className="alert error" role="alert">{error}</div>}
       <div className="form-grid">
         <Field label="Current password" htmlFor="pw-current">
-          <input id="pw-current" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+          <PasswordInput id="pw-current" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
         </Field>
         <Field label="New password" htmlFor="pw-new" hint="At least 12 characters.">
-          <input id="pw-new" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
+          <PasswordInput id="pw-new" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
         </Field>
         <Field label="Repeat new password" htmlFor="pw-confirm">
-          <input id="pw-confirm" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          <PasswordInput id="pw-confirm" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         </Field>
       </div>
       <div className="form-actions">

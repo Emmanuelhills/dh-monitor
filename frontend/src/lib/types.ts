@@ -139,6 +139,9 @@ export interface NotificationSettings {
   remind_on_expiration_day: boolean;
   overdue_reminder_days: number;
   remind_suspended: boolean;
+  email_provider: EmailProvider;
+  resend_sender: string | null;
+  resend_api_key_set: boolean;
   ses_region: string | null;
   ses_sender: string | null;
   ses_configuration_set: string | null;
@@ -148,14 +151,18 @@ export interface NotificationSettings {
   ses_last_validation: SesChecks | Record<string, never>;
 }
 
+export type EmailProvider = "ses" | "resend";
+
+/** Result of "Validate only". SES-only fields are absent for Resend. */
 export interface SesChecks {
-  region: string | null;
+  provider?: EmailProvider;
+  region?: string | null;
   sender: string | null;
   credentials: boolean | null;
-  sending_enabled: boolean | null;
-  production_access: boolean | null;
+  sending_enabled?: boolean | null;
+  production_access?: boolean | null;
   sender_verified: boolean | null;
-  quota: { max_24_hour_send: number; max_send_rate: number; sent_last_24_hours: number } | null;
+  quota?: { max_24_hour_send: number; max_send_rate: number; sent_last_24_hours: number } | null;
   problems: string[];
 }
 
@@ -264,4 +271,12 @@ export interface Registrar extends RegistrarRef {
   hosting_count: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface Admin {
+  id: string;
+  email: string;
+  is_active: boolean;
+  created_at: string;
+  last_login_at: string | null;
 }

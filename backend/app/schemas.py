@@ -58,6 +58,19 @@ class ChangePasswordIn(BaseModel):
     new_password: str = Field(min_length=12, max_length=512)
 
 
+class AdminCreateIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=12, max_length=512)
+
+
+class AdminOut(ORMModel):
+    id: uuid.UUID
+    email: str
+    is_active: bool
+    created_at: datetime
+    last_login_at: datetime | None
+
+
 # --------------------------------------------------------------------------- shared record fields
 
 
@@ -359,6 +372,9 @@ class NotificationSettingsOut(BaseModel):
     remind_on_expiration_day: bool
     overdue_reminder_days: int
     remind_suspended: bool
+    email_provider: Literal["ses", "resend"]
+    resend_sender: str | None
+    resend_api_key_set: bool
     ses_region: str | None
     ses_sender: str | None
     ses_configuration_set: str | None
@@ -385,6 +401,10 @@ class NotificationSettingsIn(BaseModel):
     remind_on_expiration_day: bool | None = None
     overdue_reminder_days: int | None = Field(default=None, ge=0, le=60)
     remind_suspended: bool | None = None
+    email_provider: Literal["ses", "resend"] | None = None
+    resend_sender: EmailStr | None = None
+    resend_api_key: str | None = Field(default=None, min_length=8, max_length=256, pattern=r"^\S+$")
+    clear_resend_api_key: bool = False
     ses_region: str | None = Field(default=None, pattern=r"^[a-z]{2}(-[a-z]+)+-\d$")
     ses_sender: EmailStr | None = None
     ses_configuration_set: str | None = Field(default=None, max_length=255)
