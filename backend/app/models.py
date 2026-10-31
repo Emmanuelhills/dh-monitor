@@ -146,6 +146,26 @@ class UserSession(Base):
     user: Mapped[User] = relationship()
 
 
+class PasswordResetToken(Base):
+    """One-time link sent by "Forgot password". Only the SHA-256 of the token is stored."""
+
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ip_address: Mapped[str | None] = mapped_column(String(64))
+
+    user: Mapped[User] = relationship()
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
     __table_args__ = (

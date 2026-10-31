@@ -82,3 +82,20 @@ def render_test_email(sender: str, provider: str = "Amazon SES") -> OutgoingEmai
     )
     html = f"<p>This is a test message from Domain &amp; Hosting Monitor.</p><p>{escape(provider)} accepted it from {escape(sender)}. Expiration reminders will use the same configuration.</p>"
     return OutgoingEmail(to="", subject=subject, text=text, html=html)
+
+
+def render_password_reset(link: str, valid_minutes: int) -> OutgoingEmail:
+    subject = "Reset your Domain & Hosting Monitor password"
+    text = (
+        "Someone asked to reset the password for this account on Domain & Hosting Monitor.\n\n"
+        f"Open this link to choose a new password (valid for {valid_minutes} minutes, one use only):\n{link}\n\n"
+        "If you didn't ask for this, ignore this email. Your password stays the same."
+    )
+    html = (
+        "<p>Someone asked to reset the password for this account on Domain &amp; Hosting Monitor.</p>"
+        f'<p><a href="{escape(link)}">Choose a new password</a></p>'
+        f"<p>The link is valid for {valid_minutes} minutes and works once. If the link doesn't open, "
+        f"copy this address into your browser:<br>{escape(link)}</p>"
+        "<p>If you didn't ask for this, ignore this email. Your password stays the same.</p>"
+    )
+    return OutgoingEmail(to="", subject=subject, text=text, html=html)

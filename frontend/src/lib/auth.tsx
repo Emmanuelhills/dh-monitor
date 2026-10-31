@@ -19,7 +19,7 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-export const PUBLIC_PATHS = ["/", "/login"];
+export const PUBLIC_PATHS = ["/", "/login", "/forgot-password", "/reset-password"];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<Me | null>(null);

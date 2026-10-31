@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { ConfirmButton, ErrorAlert, Field, Loading, PasswordInput } from "@/components/ui";
 import { ApiError, api, errorMessage } from "@/lib/api";
@@ -65,6 +65,69 @@ function AddAdminForm({ onDone, onCancel }: { onDone: () => void; onCancel: () =
   );
 }
 
+function SetPasswordButton({ admin }: { admin: Admin }) {
+  const toast = useToast();
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  function open() {
+    setPassword(""); setConfirm(""); setError(null);
+    ref.current?.showModal();
+  }
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (password.length < 12) return setError("Use at least 12 characters.");
+    if (password !== confirm) return setError("The passwords do not match.");
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/users/${admin.id}/password`, { password });
+      ref.current?.close();
+      toast("success", `Password changed for ${admin.email}. They were signed out.`);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button type="button" className="btn small" onClick={open}>Set password</button>
+      <dialog ref={ref} className="modal" aria-labelledby={titleId}>
+        <form onSubmit={save} noValidate>
+          <div className="modal-body form">
+            <h2 id={titleId}>Set a new password for {admin.email}</h2>
+            <p className="muted" style={{ margin: 0 }}>
+              They&apos;ll be signed out and must use this password next time. Share it with them privately.
+            </p>
+            {error && <div className="alert error" role="alert">{error}</div>}
+            <Field label="New password" htmlFor={`${titleId}-pw`} hint="At least 12 characters.">
+              <PasswordInput id={`${titleId}-pw`} autoComplete="new-password" value={password}
+                onChange={(e) => setPassword(e.target.value)} />
+            </Field>
+            <Field label="Repeat password" htmlFor={`${titleId}-pw2`}>
+              <PasswordInput id={`${titleId}-pw2`} autoComplete="new-password" value={confirm}
+                onChange={(e) => setConfirm(e.target.value)} />
+            </Field>
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn" onClick={() => ref.current?.close()} disabled={busy}>Cancel</button>
+            <button type="submit" className="btn primary" disabled={busy || !password || !confirm}>
+              {busy && <span className="spinner" aria-hidden />} Set password
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </>
+  );
+}
+
 export default function AdminsPage() {
   const toast = useToast();
   const { user } = useAuth();
@@ -119,6 +182,7 @@ export default function AdminsPage() {
                     <td>
                       {a.id !== user?.id && (
                         <div className="btn-row" style={{ justifyContent: "flex-end" }}>
+                          <SetPasswordButton admin={a} />
                           <ConfirmButton className="btn small danger" label="Remove" title={`Remove ${a.email}?`}
                             confirmLabel="Remove" onConfirm={() => remove(a)}
                             message="They will be signed out and can no longer sign in. Their past actions stay in the audit log." />

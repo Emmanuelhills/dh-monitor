@@ -58,6 +58,23 @@ class ChangePasswordIn(BaseModel):
     new_password: str = Field(min_length=12, max_length=512)
 
 
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    new_password: str = Field(min_length=12, max_length=512)
+
+
+class TokenCheckIn(BaseModel):
+    token: str = Field(min_length=1, max_length=200)
+
+
+class AdminPasswordIn(BaseModel):
+    password: str = Field(min_length=12, max_length=512)
+
+
 class AdminCreateIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=12, max_length=512)

@@ -62,6 +62,7 @@ export default function LoginPage() {
             <label htmlFor="password">Password</label>
             <PasswordInput id="password" autoComplete="current-password" required value={password}
               onChange={(e) => setPassword(e.target.value)} />
+            <a className="small" href="/forgot-password" style={{ justifySelf: "end" }}>Forgot password?</a>
           </div>
           <button className="btn primary" type="submit" disabled={busy || !email || !password}>
             {busy && <span className="spinner" aria-hidden />} Sign in

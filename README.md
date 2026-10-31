@@ -171,6 +171,18 @@ call `register()`. Adapters declare their fields, authentication, rate limit, ti
   `DHM_COOKIE_SECURE=true`. API docs (`/api/v1/docs`) are disabled when
   `DHM_ENVIRONMENT=production`.
 
+## Password reset
+
+- **Forgot password?** on the sign-in page emails a reset link through the selected email sender
+  (SES or Resend), so email must be set up first. The link works once, expires after 1 hour, and
+  only the newest link is valid. Resetting signs the account out everywhere. The response never
+  reveals whether an email address has an account, and requests are limited to 5 per hour per
+  email or IP. Links use `DHM_APP_BASE_URL`, so set it to the website address.
+- **Settings → Administrators → Set password** lets an admin set another admin's password
+  directly. Use it when email isn't working.
+- **Locked out with no email?** Run `python -m app.cli reset-password --email you@example.com`
+  against the database.
+
 ## Security notes
 
 - Server-side sessions (hashed token, HttpOnly, SameSite=Lax cookie, 12 h). Every

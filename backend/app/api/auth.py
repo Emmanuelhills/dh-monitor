@@ -9,8 +9,8 @@ from app.api.deps import AuthContext, client_ip, require_admin
 from app.api.errors import ApiError
 from app.config import get_settings
 from app.db import get_db
-from app.models import User, UserSession
-from app.schemas import ChangePasswordIn, LoginIn, MeOut
+from app.models import User
+from app.schemas import ChangePasswordIn, ForgotPasswordIn, LoginIn, MeOut, ResetPasswordIn, TokenCheckIn
 from app.services.audit import record_audit
 from app.services.auth import (
     create_session,
@@ -19,6 +19,7 @@ from app.services.auth import (
     too_many_failures,
     verify_password,
 )
+from app.services.password_reset import complete_reset, request_reset, set_password, valid_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -102,12 +103,28 @@ def change_password(
     user = db.get(User, ctx.user.id)
     if not verify_password(user.password_hash, body.current_password):
         raise ApiError(400, "invalid_password", "Current password is incorrect.")
-    user.password_hash = hash_password(body.new_password)
-    # Sign out every other session.
-    for session in db.scalars(select(UserSession).where(UserSession.user_id == user.id)):
-        if session.id != ctx.session.id:
-            db.delete(session)
+    set_password(db, user, body.new_password, keep_session_id=ctx.session.id)  # signs out other sessions
     record_audit(db, "password_changed", user=user, ip_address=ctx.ip)
     db.commit()
+    response.status_code = 204
+    return response
+
+
+@router.post("/forgot-password", status_code=202)
+def forgot_password(body: ForgotPasswordIn, request: Request, db: Session = Depends(get_db)):
+    """Email a reset link. The response is the same whether or not the address has an account."""
+    request_reset(db, str(body.email), client_ip(request))
+    return {"message": "If that address belongs to an administrator, a reset link is on its way."}
+
+
+@router.post("/reset-password/check")
+def check_reset_token(body: TokenCheckIn, db: Session = Depends(get_db)):
+    return {"valid": valid_token(db, body.token) is not None}
+
+
+@router.post("/reset-password", status_code=204)
+def reset_password(body: ResetPasswordIn, request: Request, response: Response, db: Session = Depends(get_db)):
+    if not complete_reset(db, body.token, body.new_password, client_ip(request)):
+        raise ApiError(400, "invalid_token", "This reset link is invalid or has expired. Ask for a new one.")
     response.status_code = 204
     return response
